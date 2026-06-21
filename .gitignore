@@ -1,0 +1,21 @@
+node_modules/
+.env
+.env.*
+!.env.development.example
+!.env.production.example
+# .env.development and .env.production are covered by .env.*
+.DS_Store
+*.log
+
+# Local ML model cache (downloaded on first run)
+.cache/
+
+# Editor and OS
+.idea/
+.vscode/
+*.swp
+
+# Credentials
+*.pem
+*.key
+credentials.json

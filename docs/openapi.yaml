@@ -1,0 +1,828 @@
+openapi: 3.0.3
+info:
+  title: Blogging API
+  description: |
+    REST API for a personal blog with block-based posts, media uploads, semantic search, and short-lived write keys.
+
+    **Authentication**
+    - Public: health, categories, published blogs, search
+    - Write key (`blk_…`) or Supabase JWT: create/edit blogs, media, reindex
+    - Admin key (`ADMIN_API_KEY`): mint, list, revoke, and cleanup API keys
+    - Metrics key: `/metrics` in production
+
+    Interactive docs: `/api/docs` · Markdown reference: `docs/API.md`
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://api.example.com
+    description: Production (replace with your host)
+
+tags:
+  - name: Health
+  - name: Categories
+  - name: Blogs
+  - name: Search
+  - name: Admin
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      description: Requires `X-API-Key` when `METRICS_API_KEY` is set or in production.
+      operationId: getMetrics
+      security:
+        - ApiKeyAuth: []
+        - {}
+      responses:
+        '200':
+          description: Prometheus text exposition format
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      operationId: listCategories
+      responses:
+        '200':
+          description: All blog categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriesResponse'
+
+  /api/blogs:
+    get:
+      tags: [Blogs]
+      summary: List blogs
+      description: Defaults to published posts only.
+      operationId: listBlogs
+      parameters:
+        - $ref: '#/components/parameters/categoryQuery'
+        - name: published
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - $ref: '#/components/parameters/limitQuery'
+        - $ref: '#/components/parameters/offsetQuery'
+      responses:
+        '200':
+          description: Paginated blog list (without full blocks)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [Blogs]
+      summary: Create blog
+      operationId: createBlog
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBlogRequest'
+      responses:
+        '201':
+          description: Blog created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/blogs/reindex-all:
+    post:
+      tags: [Blogs]
+      summary: Reindex all blogs
+      description: Rebuilds semantic search embeddings for up to 1000 posts.
+      operationId: reindexAllBlogs
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Reindex summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReindexAllResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/blogs/media:
+    post:
+      tags: [Blogs]
+      summary: Upload media
+      description: |
+        Upload an image or video (max 10 MB).
+        Allowed types: `image/jpeg`, `image/png`, `image/gif`, `image/webp`, `video/mp4`, `video/webm`.
+      operationId: uploadBlogMedia
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Media uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/blogs/slug/{slug}:
+    get:
+      tags: [Blogs]
+      summary: Get blog by slug
+      description: Pass a write key or JWT to fetch unpublished drafts.
+      operationId: getBlogBySlug
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/slugPath'
+      responses:
+        '200':
+          description: Full blog including blocks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/blogs/{id}:
+    get:
+      tags: [Blogs]
+      summary: Get blog by ID
+      operationId: getBlogById
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/idPath'
+      responses:
+        '200':
+          description: Full blog including blocks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Blogs]
+      summary: Update blog
+      operationId: updateBlog
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/idPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBlogRequest'
+      responses:
+        '200':
+          description: Blog updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlogResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Blogs]
+      summary: Delete blog
+      operationId: deleteBlog
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/idPath'
+      responses:
+        '204':
+          description: Blog deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/blogs/{id}/reindex:
+    post:
+      tags: [Blogs]
+      summary: Reindex single blog
+      operationId: reindexBlog
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/idPath'
+      responses:
+        '200':
+          description: Embedding rebuilt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReindexResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/search:
+    get:
+      tags: [Search]
+      summary: Semantic search
+      description: Finds posts by meaning using local embeddings. Pass a write key and `include_unpublished=true` to search drafts.
+      operationId: semanticSearch
+      security:
+        - ApiKeyAuth: []
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/categoryQuery'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+        - name: threshold
+          in: query
+          description: Minimum similarity score (0–1)
+          schema:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.35
+        - name: include_unpublished
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Ranked search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/admin/keys:
+    get:
+      tags: [Admin]
+      summary: List API keys
+      description: Requires the long-lived admin key (`ADMIN_API_KEY`), not a minted write key.
+      operationId: listApiKeys
+      security:
+        - AdminApiKeyAuth: []
+      responses:
+        '200':
+          description: All minted keys (prefix only, never full secret)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Admin]
+      summary: Mint write key
+      operationId: createApiKey
+      security:
+        - AdminApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: New write key — store the `key` field now; it is shown only once
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/keys/cleanup:
+    post:
+      tags: [Admin]
+      summary: Cleanup expired keys
+      description: Hard-deletes all API key rows where `expires_at` is in the past.
+      operationId: cleanupExpiredApiKeys
+      security:
+        - AdminApiKeyAuth: []
+      responses:
+        '200':
+          description: Cleanup result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CleanupKeysResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/admin/keys/{id}:
+    delete:
+      tags: [Admin]
+      summary: Revoke API key
+      description: Soft-revokes a key immediately. The row remains until cleanup removes expired entries.
+      operationId: revokeApiKey
+      security:
+        - AdminApiKeyAuth: []
+      parameters:
+        - $ref: '#/components/parameters/idPath'
+      responses:
+        '200':
+          description: Key revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevokeApiKeyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Short-lived write key (`blk_…`) minted via `POST /api/admin/keys`
+    AdminApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Long-lived admin key (`ADMIN_API_KEY` environment variable)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT — only when `SUPABASE_JWT_SECRET` is configured
+
+  parameters:
+    idPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    slugPath:
+      name: slug
+      in: path
+      required: true
+      schema:
+        type: string
+    categoryQuery:
+      name: category
+      in: query
+      schema:
+        $ref: '#/components/schemas/CategorySlug'
+    limitQuery:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 50
+    offsetQuery:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflict (e.g. duplicate slug)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    CategorySlug:
+      type: string
+      enum:
+        - tech
+        - projects
+        - github-activity
+        - sports
+        - random
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        slug:
+          $ref: '#/components/schemas/CategorySlug'
+        label:
+          type: string
+        description:
+          type: string
+
+    CategoriesResponse:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+
+    ParagraphBlock:
+      type: object
+      required: [type, text]
+      properties:
+        type:
+          type: string
+          enum: [paragraph]
+        text:
+          type: string
+
+    MediaBlock:
+      type: object
+      required: [type, url, mimeType]
+      properties:
+        type:
+          type: string
+          enum: [media]
+        url:
+          type: string
+          format: uri
+        mimeType:
+          type: string
+          example: image/png
+        alt:
+          type: string
+        caption:
+          type: string
+
+    Block:
+      oneOf:
+        - $ref: '#/components/schemas/ParagraphBlock'
+        - $ref: '#/components/schemas/MediaBlock'
+      discriminator:
+        propertyName: type
+        mapping:
+          paragraph: '#/components/schemas/ParagraphBlock'
+          media: '#/components/schemas/MediaBlock'
+
+    BlogSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        slug:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+        category:
+          $ref: '#/components/schemas/CategorySlug'
+        published:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Blog:
+      allOf:
+        - $ref: '#/components/schemas/BlogSummary'
+        - type: object
+          properties:
+            blocks:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/Block'
+
+    BlogResponse:
+      type: object
+      properties:
+        blog:
+          $ref: '#/components/schemas/Blog'
+
+    BlogListResponse:
+      type: object
+      properties:
+        blogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlogSummary'
+        total:
+          type: integer
+
+    CreateBlogRequest:
+      type: object
+      required: [title, category, blocks]
+      properties:
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/CategorySlug'
+        blocks:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Block'
+        published:
+          type: boolean
+          default: false
+        excerpt:
+          type: string
+          nullable: true
+        slug:
+          type: string
+          description: Auto-generated from title if omitted
+
+    UpdateBlogRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/CategorySlug'
+        blocks:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Block'
+        published:
+          type: boolean
+        excerpt:
+          type: string
+          nullable: true
+        slug:
+          type: string
+
+    MediaUploadResponse:
+      type: object
+      properties:
+        media:
+          type: object
+          properties:
+            path:
+              type: string
+            url:
+              type: string
+              format: uri
+            mimeType:
+              type: string
+            originalName:
+              type: string
+
+    ReindexResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        blogId:
+          type: string
+          format: uuid
+
+    ReindexAllResponse:
+      type: object
+      properties:
+        indexed:
+          type: integer
+        failed:
+          type: integer
+
+    SearchResult:
+      allOf:
+        - $ref: '#/components/schemas/BlogSummary'
+        - type: object
+          properties:
+            similarity:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 1
+
+    SearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        count:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+
+    ApiKeyStatus:
+      type: string
+      enum: [active, expired, revoked]
+
+    ApiKeySummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        keyPrefix:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ApiKeyStatus'
+
+    ApiKeyListResponse:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeySummary'
+
+    CreateApiKeyRequest:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+        expiresInHours:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 1
+
+    CreateApiKeyResponse:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Full secret — shown only once
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        keyPrefix:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        expiresInHours:
+          type: integer
+        message:
+          type: string
+
+    RevokeApiKeyResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        message:
+          type: string
+
+    CleanupKeysResponse:
+      type: object
+      properties:
+        deletedCount:
+          type: integer
+        message:
+          type: string
