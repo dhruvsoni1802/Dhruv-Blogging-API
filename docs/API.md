@@ -4,9 +4,9 @@ Complete reference for the Blogging REST API, with `curl` examples for every end
 
 **Base URL (local):** `http://localhost:3000`
 
-**Interactive docs:** [Swagger UI](http://localhost:3000/api/docs) · **OpenAPI spec:** `/api/openapi.yaml`
+**Base URL (production):** `https://dhruv-blogging-api-production.up.railway.app`
 
-Replace with your production host when deployed (e.g. `https://api.yourdomain.com`).
+**Interactive docs:** [Swagger UI (local)](http://localhost:3000/api/docs) · [Swagger UI (prod)](https://dhruv-blogging-api-production.up.railway.app/api/docs) · **OpenAPI spec:** `/api/openapi.yaml`
 
 ---
 

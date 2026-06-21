@@ -18,8 +18,8 @@ info:
 servers:
   - url: http://localhost:3000
     description: Local development
-  - url: https://api.example.com
-    description: Production (replace with your host)
+  - url: https://dhruv-blogging-api-production.up.railway.app
+    description: Production (Railway)
 
 tags:
   - name: Health

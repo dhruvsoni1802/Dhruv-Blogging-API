@@ -63,6 +63,16 @@ Env loading order: `.env` → `.env.development` or `.env.production` → `.env.
 
 See **[docs/API.md](docs/API.md)** for the complete endpoint reference with `curl` examples, or open **Swagger UI** at `http://localhost:3000/api/docs` (spec at `/api/openapi.yaml`).
 
+## Production
+
+Deployed on Railway:
+
+| | URL |
+|---|---|
+| **API** | https://dhruv-blogging-api-production.up.railway.app |
+| **Health** | https://dhruv-blogging-api-production.up.railway.app/api/health |
+| **Swagger UI** | https://dhruv-blogging-api-production.up.railway.app/api/docs |
+
 ## Stack
 
 Express, Supabase (database + storage), local embeddings via `@xenova/transformers`, structured logs via Axiom, Prometheus metrics at `/metrics`.
