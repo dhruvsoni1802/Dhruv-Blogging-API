@@ -8,7 +8,7 @@ Posts are made of **blocks** — paragraphs and media in order.
 
 Categories: Tech, Projects, GitHub Activity, Sports, Random.
 
-**Semantic search** finds related posts by meaning. A search for "distributed systems" can surface posts about MapReduce or key-value stores without those exact words. Embeddings run locally; no OpenAI key required.
+**Hybrid search** combines dense retrieval (BGE embeddings), PostgreSQL full-text search, Reciprocal Rank Fusion, and cross-encoder reranking. Finds posts by topic and exact terms without OpenAI.
 
 Anyone can read published posts. Creating and editing requires a short-lived API key (minted via the admin endpoint).
 
@@ -27,7 +27,7 @@ Copy the returned `key` and use it as `X-API-Key` for write requests.
 
 Full API reference with every `curl` example: **[docs/API.md](docs/API.md)**.
 
-Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `ADMIN_API_KEY` in `.env.development`. Run `supabase/migrations/001_initial_schema.sql` in the Supabase SQL Editor. Create a public storage bucket named `blog-media`.
+Set `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `ADMIN_API_KEY` in `.env.development`. Run migrations in order in the Supabase SQL Editor: `001_initial_schema.sql`, then `002_hybrid_search.sql`. After upgrading, run `npm run backfill-search` to populate full-text index fields. Create a public storage bucket named `blog-media`.
 
 ```bash
 npm install

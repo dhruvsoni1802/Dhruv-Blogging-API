@@ -78,7 +78,7 @@ curl -X POST http://localhost:3000/api/admin/keys \
   -d '{"label": "claude-session"}'
 ```
 
-Optional body field `expiresInHours` (1–168, default 1):
+Optional body field `expiresInHours` (1–168, default 24):
 
 ```bash
 curl -X POST http://localhost:3000/api/admin/keys \
@@ -96,7 +96,7 @@ curl -X POST http://localhost:3000/api/admin/keys \
   "label": "claude-session",
   "keyPrefix": "blk_abc1",
   "expiresAt": "2026-06-20T15:00:00.000Z",
-  "expiresInHours": 1,
+  "expiresInHours": 24,
   "message": "Store this key now — it will not be shown again."
 }
 ```
@@ -377,7 +377,9 @@ curl -X POST http://localhost:3000/api/blogs/reindex-all \
 
 ## Search
 
-### Semantic search
+### Hybrid search
+
+Combines **dense retrieval** (BGE embeddings + pgvector), **sparse retrieval** (PostgreSQL full-text / BM25-style ranking), **Reciprocal Rank Fusion**, and an optional **cross-encoder reranker** (`ms-marco-MiniLM`).
 
 No auth required for published posts. Pass a write key and `include_unpublished=true` to search drafts.
 
@@ -391,15 +393,14 @@ Query parameters:
 |-------|---------|-------------|
 | `q` | — | **Required.** Search query |
 | `category` | — | Filter by category slug |
-| `limit` | `20` | Max results |
-| `threshold` | `0.35` | Minimum similarity (0–1) |
+| `limit` | `20` | Max results returned |
 | `include_unpublished` | `false` | `true` only works with a valid write key |
 
 Examples:
 
 ```bash
-# Tech posts only, higher similarity bar
-curl "http://localhost:3000/api/search?q=mapreduce&category=tech&threshold=0.5&limit=5"
+# Tech posts only
+curl "http://localhost:3000/api/search?q=mapreduce&category=tech&limit=5"
 
 # Include drafts (write key required)
 curl "http://localhost:3000/api/search?q=draft+notes&include_unpublished=true" \

@@ -292,8 +292,11 @@ paths:
   /api/search:
     get:
       tags: [Search]
-      summary: Semantic search
-      description: Finds posts by meaning using local embeddings. Pass a write key and `include_unpublished=true` to search drafts.
+      summary: Hybrid search
+      description: |
+        Finds posts using dense retrieval (BGE + pgvector), sparse retrieval (PostgreSQL full-text),
+        Reciprocal Rank Fusion, and cross-encoder reranking. Pass a write key and
+        `include_unpublished=true` to search drafts.
       operationId: semanticSearch
       security:
         - ApiKeyAuth: []
@@ -313,14 +316,6 @@ paths:
             type: integer
             minimum: 1
             default: 20
-        - name: threshold
-          in: query
-          description: Minimum similarity score (0–1)
-          schema:
-            type: number
-            minimum: 0
-            maximum: 1
-            default: 0.35
         - name: include_unpublished
           in: query
           schema:
@@ -782,7 +777,7 @@ components:
           type: integer
           minimum: 1
           maximum: 168
-          default: 1
+          default: 24
 
     CreateApiKeyResponse:
       type: object

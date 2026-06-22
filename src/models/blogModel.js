@@ -105,3 +105,25 @@ export async function semanticSearch({
   if (error) throw error;
   return data;
 }
+
+export async function fullTextSearch({
+  query,
+  limit = 20,
+  category,
+  includeUnpublished = false,
+}) {
+  const { data, error } = await supabase.rpc('search_blogs_fulltext', {
+    search_query: query,
+    match_count: limit,
+    filter_category: category ?? null,
+    include_unpublished: includeUnpublished ?? false,
+  });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function updateSearchText(id, searchText) {
+  const { error } = await supabase.from('blogs').update({ search_text: searchText }).eq('id', id);
+  if (error) throw error;
+}

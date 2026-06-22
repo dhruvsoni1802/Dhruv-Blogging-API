@@ -38,7 +38,7 @@ const config = {
 
   auth: {
     adminApiKey: optional('ADMIN_API_KEY'),
-    defaultKeyExpiryHours: parseInt(optional('DEFAULT_KEY_EXPIRY_HOURS', '1'), 10),
+    defaultKeyExpiryHours: parseInt(optional('DEFAULT_KEY_EXPIRY_HOURS', '24'), 10),
   },
 
   cors: {
@@ -51,8 +51,12 @@ const config = {
   },
 
   search: {
-    defaultThreshold: 0.35,
-    defaultLimit: 20,
+    defaultLimit: parseInt(optional('SEARCH_DEFAULT_LIMIT', '20'), 10),
+    retrievalLimit: parseInt(optional('SEARCH_RETRIEVAL_LIMIT', '30'), 10),
+    rrfK: parseInt(optional('SEARCH_RRF_K', '60'), 10),
+    rerankEnabled: optional('SEARCH_RERANK_ENABLED', 'true') !== 'false',
+    rerankModel: optional('SEARCH_RERANK_MODEL', 'Xenova/ms-marco-MiniLM-L-6-v2'),
+    rerankCandidateLimit: parseInt(optional('SEARCH_RERANK_CANDIDATES', '20'), 10),
   },
 
   logging: {

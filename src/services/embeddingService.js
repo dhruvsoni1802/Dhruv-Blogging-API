@@ -7,7 +7,7 @@ import {
   recordEmbeddingIndexFailure,
 } from '../lib/metrics.js';
 import * as blogModel from '../models/blogModel.js';
-import { blocksToPlainText } from '../utils/blocks.js';
+import { buildSearchText } from '../utils/searchText.js';
 import { contentHash } from '../utils/hash.js';
 
 let extractor = null;
@@ -38,9 +38,7 @@ async function createEmbedding(text, { isQuery = false } = {}) {
 }
 
 function buildIndexText(blog) {
-  const plainText = blocksToPlainText(blog.blocks);
-  const parts = [blog.title, blog.excerpt, plainText].filter(Boolean);
-  return parts.join('\n\n').slice(0, 8000);
+  return buildSearchText(blog).slice(0, 8000);
 }
 
 export async function warmUpEmbeddingModel() {

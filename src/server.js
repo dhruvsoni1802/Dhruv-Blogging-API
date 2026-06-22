@@ -5,6 +5,7 @@ import { validateProductionConfig } from './config/validate.js';
 import logger from './lib/logger.js';
 import { processUp } from './lib/metrics.js';
 import { warmUpEmbeddingModel } from './services/embeddingService.js';
+import { warmUpReranker } from './services/rerankService.js';
 
 validateProductionConfig();
 
@@ -24,6 +25,10 @@ const server = app.listen(config.port, () => {
 
   warmUpEmbeddingModel().catch((err) => {
     logger.warn({ err }, 'Embedding model warm-up failed');
+  });
+
+  warmUpReranker().catch((err) => {
+    logger.warn({ err }, 'Reranker model warm-up failed');
   });
 });
 

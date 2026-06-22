@@ -6,6 +6,7 @@ import {
   normalizeBlocks,
   generateExcerpt,
 } from '../utils/blocks.js';
+import { buildSearchText } from '../utils/searchText.js';
 import { badRequest, notFound } from '../errors/ApiError.js';
 import logger from '../lib/logger.js';
 import { uploadMedia } from '../services/storageService.js';
@@ -104,14 +105,20 @@ export async function createBlog(req, res, next) {
 
     const normalizedBlocks = normalizeBlocks(blocks);
     const slug = resolveSlug(title, rawSlug);
+    const resolvedExcerpt = resolveExcerpt(normalizedBlocks, excerpt);
 
     const blog = await blogModel.create({
       title: title.trim(),
       slug,
       blocks: normalizedBlocks,
-      excerpt: resolveExcerpt(normalizedBlocks, excerpt),
+      excerpt: resolvedExcerpt,
       category,
       published: parseBool(published, false),
+      search_text: buildSearchText({
+        title: title.trim(),
+        blocks: normalizedBlocks,
+        excerpt: resolvedExcerpt,
+      }),
     });
 
     indexBlog(blog).catch((err) =>
@@ -171,6 +178,15 @@ export async function updateBlog(req, res, next) {
       updates.slug = resolveSlug(title, existing.slug);
     }
 
+    if (
+      updates.title !== undefined ||
+      updates.blocks !== undefined ||
+      updates.excerpt !== undefined
+    ) {
+      const merged = { ...existing, ...updates };
+      updates.search_text = buildSearchText(merged);
+    }
+
     const blog = await blogModel.update(req.params.id, updates);
 
     indexBlog(blog).catch((err) =>
@@ -204,7 +220,10 @@ export async function reindexBlog(req, res, next) {
       throw notFound('Blog not found');
     }
 
-    await indexBlog(blog);
+    const searchText = buildSearchText(blog);
+    await blogModel.updateSearchText(blog.id, searchText);
+    await indexBlog({ ...blog, search_text: searchText });
+
     res.status(200).json({ message: 'Blog indexed successfully', blogId: blog.id });
   } catch (err) {
     next(err);
@@ -214,11 +233,14 @@ export async function reindexBlog(req, res, next) {
 export async function reindexAll(_req, res, next) {
   try {
     const { blogs } = await blogModel.findAll({ published: undefined, limit: 1000 });
-    const results = { indexed: 0, failed: 0 };
+    const results = { indexed: 0, failed: 0, searchTextUpdated: 0 };
 
     for (const blog of blogs) {
       try {
-        await indexBlog(blog);
+        const searchText = buildSearchText(blog);
+        await blogModel.updateSearchText(blog.id, searchText);
+        results.searchTextUpdated++;
+        await indexBlog({ ...blog, search_text: searchText });
         results.indexed++;
       } catch (err) {
         logger.error({ err, blogId: blog.id }, 'Failed to index blog during reindex-all');
